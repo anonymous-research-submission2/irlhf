@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>The Adversarial Cycle</title>
+</head>
+<body>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper:#f1f5f5; --surface:#fff; --surface-2:#e9efef;
+    --ink:#0e1518; --ink-2:#46565b; --ink-3:#74868b;
+    --rule:#cbd7d7; --rule-soft:#dde5e5;
+    --accent:#0d6e66; --accent-2:#0a534d; --accent-wash:#dfece9;
+    --ctrl:#4a7fd4; --fb:#2e9c62; --hazard:#8e3340; --amber:#8a6410; --amber-wash:#f3ebd9;
+    --f-display:"Newsreader","Iowan Old Style",Georgia,serif;
+    --f-body:"Public Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0c1214; --surface:#131c1f; --surface-2:#1a2529;
+      --ink:#e8efef; --ink-2:#a8b8bb; --ink-3:#7d9095;
+      --rule:#2a383c; --rule-soft:#1f2b2f;
+      --accent:#5ec3b4; --accent-2:#8ad7ca; --accent-wash:#132e2c;
+      --ctrl:#6f9ce4; --fb:#4cc184; --hazard:#e08c94; --amber:#d9b061; --amber-wash:#2a2317;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0c1214; --surface:#131c1f; --surface-2:#1a2529;
+    --ink:#e8efef; --ink-2:#a8b8bb; --ink-3:#7d9095;
+    --rule:#2a383c; --rule-soft:#1f2b2f;
+    --accent:#5ec3b4; --accent-2:#8ad7ca; --accent-wash:#132e2c;
+    --ctrl:#6f9ce4; --fb:#4cc184; --hazard:#e08c94; --amber:#d9b061; --amber-wash:#2a2317;
+  }
+
+  *{box-sizing:border-box}
+  /* .step and .row set display:flex, and an author rule beats the UA stylesheet's
+     [hidden]{display:none} -- without this the whole guided sequence shows at once. */
+  [hidden]{display:none!important}
+  body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1150px;margin:0 auto;padding:clamp(1rem,3vw,2.2rem);display:flex;flex-direction:column;gap:1.1rem}
+  h1{font-family:var(--f-display);font-weight:500;font-size:clamp(1.55rem,3.4vw,2.15rem);line-height:1.1;letter-spacing:-.015em;margin:0;text-wrap:balance}
+  p{margin:0}
+  .lede{color:var(--ink-2);max-width:74ch}
+  .mono{font-family:var(--f-mono)}
+  code{font-family:var(--f-mono);font-size:.85em;background:var(--surface-2);padding:.1em .35em;border-radius:3px}
+  header{border-bottom:2px solid var(--ink);padding-bottom:.9rem;display:flex;flex-direction:column;gap:.5rem}
+
+  .stage{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(268px,.58fr);gap:1rem;align-items:start}
+  @media (max-width:880px){.stage{grid-template-columns:1fr}}
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:.85rem}
+  canvas{display:block;width:100%;border-radius:3px}
+  #plane{aspect-ratio:16/10;cursor:crosshair;touch-action:none}
+  #series{height:120px}
+
+  /* ---- the guided column ---- */
+  #controls{display:flex;flex-direction:column;gap:.1rem}
+  .progress{font-family:var(--f-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--ink-3);display:flex;justify-content:space-between;align-items:baseline;
+    padding-bottom:.55rem;margin-bottom:.2rem;border-bottom:1px solid var(--rule-soft)}
+  .progress b{color:var(--accent);font-weight:600}
+  .ghead{font-family:var(--f-body);font-size:.65rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);margin:.85rem 0 .1rem;padding-top:.6rem;border-top:1px solid var(--rule-soft)}
+  .step{padding:.55rem 0 .1rem;display:flex;flex-direction:column;gap:.4rem}
+  .step + .step{border-top:1px dashed var(--rule-soft)}
+  .q{font-family:var(--f-display);font-size:.99rem;line-height:1.34;color:var(--ink)}
+  .step.done .q{color:var(--ink-2)}
+  .row{display:flex;flex-direction:column;gap:.25rem}
+  .row .top{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+  .row label{font-size:.79rem;font-weight:500;color:var(--ink-2)}
+  .row .val{font-family:var(--f-mono);font-size:.76rem;color:var(--accent);font-variant-numeric:tabular-nums}
+  .hint{font-size:.71rem;color:var(--ink-3);line-height:1.35}
+  .hint.warn{color:var(--hazard)}
+  input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;margin:0}
+  input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+  .toggle{display:flex;gap:.4rem}
+  .toggle button{flex:1}
+  button{font-family:var(--f-body);font-size:.78rem;font-weight:600;color:var(--ink);background:var(--surface-2);
+    border:1px solid var(--rule);border-radius:4px;padding:.38rem .55rem;cursor:pointer;transition:background .12s,border-color .12s}
+  button:hover{border-color:var(--accent)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button[aria-pressed="true"]{background:var(--accent-wash);border-color:var(--accent);color:var(--accent-2)}
+  .linkish{background:none;border:none;color:var(--accent);font-weight:500;font-size:.74rem;
+    padding:.2rem 0;text-decoration:underline;text-underline-offset:2px;align-self:flex-start}
+  .linkish:hover{border:none;color:var(--accent-2)}
+  .playback{display:flex;gap:.4rem;margin-top:.9rem;padding-top:.7rem;border-top:1px solid var(--rule-soft)}
+  .playback button{flex:1}
+  .simbar{display:flex;gap:.4rem;justify-content:flex-end;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--rule-soft)}
+
+  .readouts{display:grid;grid-template-columns:repeat(6,1fr);gap:.5rem}
+  @media (max-width:700px){.readouts{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:.45rem .6rem;display:flex;flex-direction:column;gap:.02rem}
+  .stat b{font-family:var(--f-mono);font-size:1.02rem;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat span{font-family:var(--f-mono);font-size:.59rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:.35rem .95rem;font-size:.73rem;color:var(--ink-2);margin-top:.5rem}
+  .legend i{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;margin-right:.3rem;vertical-align:-1px}
+  .swatch{display:inline-block;width:2.4rem;height:.6rem;border-radius:2px;vertical-align:-1px;margin-right:.3rem;
+    background:linear-gradient(90deg,#8e3340,rgba(128,128,128,.15),#0d6e66)}
+  details{background:var(--surface-2);border:1px solid var(--rule);border-radius:4px;padding:.6rem .85rem;font-size:.84rem}
+  summary{cursor:pointer;font-weight:600;font-size:.85rem}
+  details[open] summary{margin-bottom:.5rem;padding-bottom:.45rem;border-bottom:1px solid var(--rule)}
+  details p + p{margin-top:.5rem}
+  footer{border-top:1px solid var(--rule);padding-top:.7rem;font-size:.76rem;color:var(--ink-3)}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="meta" style="font-family:var(--f-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Anonymous supplementary material &middot; under review</p>
+    <h1>Watch the adversarial cycle &mdash; and what one bit of feedback does to it</h1>
+    <p class="lede">A minimal inverse-RL game. One <b>ground-truth distribution</b> of good behaviour (grey contours) supplies a handful of <b>demonstrations</b>. The <b>policy</b> is a Gaussian whose mean you can watch move. A small <b>critic</b> network is trained to score demonstrations above the policy's samples, and the policy climbs whatever reward it produces. Both keep training, each responding to the other, exactly as in a GAN. The operator's <b>success set</b> (dashed) always contains the demonstrations, since a demonstration is a success by definition.</p>
+  </header>
+
+  <div class="stage">
+    <div class="panel">
+      <canvas id="plane"></canvas>
+      <div class="legend">
+        <span><span class="swatch"></span>learned reward</span>
+        <span><i style="background:#0e1518"></i>demonstrations</span>
+        <span><i style="background:var(--ctrl)"></i>negative batch</span>
+        <span><i style="background:var(--fb)"></i>withheld by feedback</span>
+        <span><i style="background:var(--accent)"></i>policy mean</span>
+        <span style="color:var(--ink-3)">solid grey: ground truth &middot; dashed: success set (contains every demonstration)</span>
+      </div>
+      <div class="simbar"><button id="reset">Reset</button></div>
+    </div>
+
+    <div class="panel" id="controls">
+      <div class="progress"><span>Question <b id="qNum">1</b> of <span id="qTot">9</span></span>
+        <button class="linkish" id="showAll" style="font-size:.63rem;padding:0">show all</button></div>
+
+      <!-- 1 ------------------------------------------------------------ -->
+      <div class="step" data-step="0" data-group="core">
+        <p class="q">The policy is heading for the demonstrations. Once it gets there, is it allowed to stay?</p>
+        <div class="toggle">
+          <button id="fbOff" aria-pressed="false">Feedback off</button>
+          <button id="fbOn" aria-pressed="true">Feedback on</button>
+        </div>
+        <p class="hint" id="fbHint">Successes are withheld from the negative batch. Nothing else changes.</p>
+      </div>
+
+      <!-- 2 ------------------------------------------------------------ -->
+      <div class="step" data-step="1" data-group="core" hidden>
+        <p class="q">Try it by hand: put the policy right on the demonstrations. Does it hold?</p>
+        <button id="drop">Drop the policy on the demonstrations</button>
+        <p class="hint">Or click anywhere on the plane. Either way the critic starts over with it, so you are setting an initial condition for the whole game &mdash; not dropping the policy into a reward already trained against a policy that was somewhere else.</p>
+      </div>
+
+      <!-- 3 ------------------------------------------------------------ -->
+      <div class="step" data-step="2" data-group="operator" hidden>
+        <p class="q">A real operator gets bored. How many successes can they miss before the cycle comes back?</p>
+        <div class="row">
+          <div class="top"><label for="beta">Misses successes &beta;</label><span class="val" id="betaV">0.00</span></div>
+          <input type="range" id="beta" min="0" max="1" step="0.05" value="0">
+        </div>
+        <p class="hint" id="betaHint">&nbsp;</p>
+      </div>
+
+      <!-- 4 ------------------------------------------------------------ -->
+      <div class="step" data-step="3" data-group="operator" hidden>
+        <p class="q">Now the opposite operator: not lazy, but generous, waving through near-misses. Same damage?</p>
+        <div class="row">
+          <div class="top"><label for="gen">Accepts near-misses</label><span class="val" id="genV">0.00</span></div>
+          <input type="range" id="gen" min="0" max="1.2" step="0.05" value="0">
+        </div>
+        <p class="hint">The red circle is what they are actually accepting.</p>
+      </div>
+
+      <!-- 5 ------------------------------------------------------------ -->
+      <div class="step" data-step="4" data-group="operator" hidden>
+        <p class="q">And an operator who simply errs at random, certifying failures anywhere?</p>
+        <div class="row">
+          <div class="top"><label for="alpha">Certifies failures &alpha;</label><span class="val" id="alphaV">0.00</span></div>
+          <input type="range" id="alpha" min="0" max="0.6" step="0.05" value="0">
+        </div>
+      </div>
+
+      <!-- 6 ------------------------------------------------------------ -->
+      <div class="step" data-step="5" data-group="operator" hidden>
+        <p class="q">How close does the policy have to get before anyone calls it a success?</p>
+        <div class="row">
+          <div class="top"><label for="sr">Success radius</label><span class="val" id="srV">0.85</span></div>
+          <input type="range" id="sr" min="0.85" max="1.8" step="0.05" value="0.85">
+        </div>
+        <p class="hint">It will not go below <b id="srFloorV">0.85</b>: every demonstration is a success, so the success set has to contain all of them. An operator cannot be stricter than the demonstrations they accepted &mdash; and the floor moves when you resample.</p>
+      </div>
+
+      <!-- 7 ------------------------------------------------------------ -->
+      <div class="step" data-step="6" data-group="expert" hidden>
+        <p class="q">The demonstrations are a finite sample from the truth. Does having more of them help?</p>
+        <div class="row">
+          <div class="top"><label for="ndemos">Demonstrations</label><span class="val" id="ndemosV">12</span></div>
+          <input type="range" id="ndemos" min="1" max="40" step="1" value="12">
+        </div>
+        <button id="resample">Resample demonstrations</button>
+      </div>
+
+      <!-- 8 ------------------------------------------------------------ -->
+      <div class="step" data-step="7" data-group="expert" hidden>
+        <p class="q">What if the demonstrations are biased &mdash; systematically off the behaviour you actually want?</p>
+        <div class="row">
+          <div class="top"><label for="bias">Demonstration bias</label><span class="val" id="biasV">0.00</span></div>
+          <input type="range" id="bias" min="0" max="1.5" step="0.05" value="0">
+        </div>
+        <p class="hint">The demos shift; the ground truth and the operator's success set stay where they are &mdash; so this is the one control that puts demonstrations outside the success set, and those turn red. That disagreement is the question: the operator's labels know something the demonstrations do not. The blue crosshair is the demo mean.</p>
+      </div>
+
+      <!-- 9 ------------------------------------------------------------ -->
+      <div class="step" data-step="8" data-group="critic" hidden>
+        <p class="q">Maybe the cycle is just a badly fit critic. Could you train it harder instead?</p>
+        <div class="row">
+          <div class="top"><label for="ncritic">Critic steps per policy step</label><span class="val" id="ncriticV">1</span></div>
+          <input type="range" id="ncritic" min="1" max="5" step="1" value="1">
+        </div>
+      </div>
+
+      <!-- 9 ------------------------------------------------------------ -->
+      <div class="step" data-step="9" data-group="critic" hidden>
+        <p class="q">Then regularise the reward into submission. That stops the cycle too &mdash; is it the same thing?</p>
+        <div class="row">
+          <div class="top"><label for="decay">Regularisation &lambda;</label><span class="val" id="decayV">0.0000</span></div>
+          <input type="range" id="decay" min="0" max="0.01" step="0.0005" value="0">
+        </div>
+        <div class="row">
+          <div class="top"><label for="clip">Weight clip <span class="mono">c</span></label><span class="val" id="clipV">0.35</span></div>
+          <input type="range" id="clip" min="0.1" max="0.8" step="0.05" value="0.35">
+        </div>
+      </div>
+
+      <div class="playback">
+        <button id="play" aria-pressed="true">Pause</button>
+      </div>
+      <div class="row" id="speedRow" hidden style="margin-top:.5rem">
+        <div class="top"><label for="speed">Steps per frame</label><span class="val" id="speedV">4</span></div>
+        <input type="range" id="speed" min="1" max="16" step="1" value="4">
+      </div>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <div class="stat"><b id="dNow">&mdash;</b><span>distance now</span></div>
+    <div class="stat"><b id="dMean">&mdash;</b><span>mean, recent</span></div>
+    <div class="stat"><b id="dSwing">&mdash;</b><span>swing, recent</span></div>
+    <div class="stat"><b id="withheld">&mdash;</b><span>batch withheld</span></div>
+    <div class="stat"><b id="dDemo">&mdash;</b><span>to demo mean</span></div>
+    <div class="stat"><b id="nOut">0 / 12</b><span>demos outside success set</span></div>
+  </div>
+
+  <div class="panel">
+    <p class="hint" style="margin-bottom:.4rem;font-size:.65rem;letter-spacing:.11em;text-transform:uppercase">Distance from the demonstrations, over time</p>
+    <canvas id="series"></canvas>
+  </div>
+
+  <details>
+    <summary>What the offline sweeps say</summary>
+    <p><b>Why the success set contains the demonstrations.</b> A demonstration is a success by definition, so a demo outside the operator's success set is a failure sitting in the positive batch. Earlier versions of this page drew the demos from the truth and judged them against a radius of 0.45, which put about a third of every draw outside &mdash; the numbers below are all re-measured without that. The other way to fix it, keeping the radius tight and pulling stray demonstrations in, was measured too: it concentrates the demo set into something a Gaussian policy <i>can</i> match, the game becomes realizable, and the control arm stops cycling on its own (swing 0.027&ndash;0.072 over success radii 0.15&ndash;0.45 and policy spreads 0.22&ndash;0.30, no arm cycling anywhere in that grid). Non-realizability is this toy's engine. So the admissible arrangement is the reverse coupling: the operator cannot be stricter than the demonstrations they accepted, and the radius floors at the demo set's extent. That generosity has a price, and it is the same price the near-miss operator below pays.</p>
+    <p>Three critic initialisations at these defaults, 6000 steps, no regularisation. <b>Without feedback:</b> mean distance 0.28 / 0.27 / 0.34, swing 0.46 / 0.04 / 0.80, closest approach 0.06 / 0.25 / 0.01 &mdash; the control either orbits or freezes a quarter of the way out, and which one you get is the initialisation. <b>With feedback:</b> mean 0.065 / 0.057 / 0.052, swing 0.19 / 0.15 / 0.13. &lambda; is zero throughout, so nothing is damping the game. Feedback does not drive the swing to zero here; it bounds it, and lands five times closer.</p>
+    <p><b>Read those three with care:</b> they vary the critic init and the sampling but hold the demonstration draw fixed. Over a 5 &times; 5 grid of draws and inits, each judged against its own success radius, the variance in control swing across draws is eight times the variance across initialisations (0.019 against 0.002) &mdash; how much the control cycles is mostly a property of which demonstrations you happened to draw (per-draw swings 0.04, 0.04, 0.04, 0.40, 0.15), and the opening draw here is pinned to one that does. What survives every draw is distance, not swing: feedback 0.02&ndash;0.10 against the control's 0.05&ndash;0.22. Feedback's own residual swing (~0.13) is the negative batch shrinking as the policy succeeds &mdash; fewer negatives, a noisier critic.</p>
+    <p><b>Critic steps per policy step</b> (3 inits): control swing 0.60/0.04/0.79 at one step, 0.56/0.75/0.79 at two, 0.72/0.70/0.67 at five &mdash; training the critic closer to optimality makes the cycle both larger and more reliable, so the frozen initialisation stops being a way out. Feedback's swing rises too (0.15&ndash;0.19, 0.25&ndash;0.26, 0.30&ndash;0.31) but its distance holds: 0.053, 0.079, 0.101 against 0.291, 0.325, 0.359, about 3.5&times; closer at every ratio.</p>
+    <p><b>Biased demonstrations.</b> Shifting the demo set off-centre while the operator keeps judging against the truth. Up to a bias of 0.35 every demonstration is still inside the success set and the split is clean: the control settles on the demo mean and inherits the bias in full (error to truth 0.29 / 0.25 / 0.33 at bias 0.00 / 0.20 / 0.35) while feedback holds the truth (0.053 / 0.056 / 0.066). At 0.60, three of the twelve demonstrations have left the success set and feedback still corrects, 0.56 &rarr; 0.10. By 1.00 nine of twelve are outside and the correction is half gone (0.93 &rarr; 0.52); at 1.50 all twelve are outside and it is gone (1.399 against 1.396) &mdash; a policy sitting on the demonstrations never enters the success set, so nothing is ever withheld and feedback has no lever. That is why the count of demonstrations outside the success set is on the readout: it is the mechanism, not a diagnostic. Widening the radius to cover the biased demonstrations buys part of the correction back (at bias 1.00, radius 1.35: 0.31 rather than 0.52) but that is the near-miss trade from the other side &mdash; a success set generous enough to contain a biased demonstrator certifies mediocre policies too. This is the one finding here that is a capability claim rather than a stability claim: the labels carry information about the task that the demonstrations lack.</p>
+    <p><b>Operator error is asymmetric</b> (3 inits; a perfect operator gives mean 0.053, swing 0.164, and no feedback at all gives 0.291 / 0.477). Uniform false positives are nearly free: &alpha;=0.30 gives 0.060, and even &alpha;=0.60 gives 0.062 &mdash; certifying failures at random barely moves the fixed point, because the errors average out over the batch. An operator who instead errs <i>at the boundary</i>, waving through near-misses, pays in accuracy: 0.086 at +20% of the radius and 0.149 at +50%, and at +50% the swing collapses to 0.037 &mdash; the policy stops dead, at the wrong distance. Missed successes are the expensive error: &beta;=0.60 gives 0.277 / 0.415 and &beta;=0.90 gives 0.286 / 0.458, both indistinguishable from having no operator. So recall is what the operator has to deliver, and a label-noise study that flips labels i.i.d. would find precision harmless and conclude the wrong thing.</p>
+  </details>
+
+  <footer>A browser port of the 2D toy in the paper's supplementary code. Critic: <span class="mono">2&rarr;32&rarr;32&rarr;1</span> tanh network, weights clipped to <span class="mono">&plusmn;c</span>, ascending <span class="mono">mean f(demos) &minus; mean f(negatives)</span>; policy ascends <span class="mono">grad&#8339; f</span>; both step every iteration. Earlier drafts used a quadratic critic (one stationary point, so the basis decided the outcome) and random Fourier features (a sum of cosines, whose ripples shoved the policy into spurious optima no network would have). Illustration of a mechanism, not evidence.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var SIG_GT = 0.30, SIG_P = 0.22, ETA_W = 0.02, ETA_MU = 0.02;
+  var BATCH = 128, WINDOW = 900, H = 32, START = [1.4, 0], BOUND = 3.0;
+
+  var P = { feedback: true, alpha: 0, beta: 0, generous: 0, decay: 0,
+            nDemos: 12, sr: 0.85, clip: 0.35, nCritic: 1, speed: 4, bias: 0 };
+  var mu, demos, baseDemos, demoMean, trail, hist, withheld = 0;
+  var running = true, spare = null, last = null, autoOff = false, tick = 0;
+
+  function randn() {
+    if (spare !== null) { var s = spare; spare = null; return s; }
+    var u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    var r = Math.sqrt(-2 * Math.log(u)), t = 2 * Math.PI * v;
+    spare = r * Math.sin(t); return r * Math.cos(t);
+  }
+
+  // ---- critic: 2 -> H -> H -> 1 tanh MLP ----------------------------------
+  var W1, b1, W2, b2, w3, b3;
+  function initCritic() {
+    W1 = new Float64Array(2 * H); b1 = new Float64Array(H);
+    W2 = new Float64Array(H * H); b2 = new Float64Array(H);
+    w3 = new Float64Array(H); b3 = 0;
+    var s2 = 1 / Math.sqrt(H);
+    for (var i = 0; i < 2 * H; i++) W1[i] = randn() * 0.8;
+    for (var j = 0; j < H * H; j++) W2[j] = randn() * s2;
+    for (var k = 0; k < H; k++) w3[k] = randn() * s2;
+  }
+  var _a1 = new Float64Array(H), _a2 = new Float64Array(H),
+      _d1 = new Float64Array(H), _d2 = new Float64Array(H);
+
+  function fwd(x, y) {
+    var k, j, f = b3;
+    for (j = 0; j < H; j++) _a1[j] = Math.tanh(x * W1[j] + y * W1[H + j] + b1[j]);
+    for (k = 0; k < H; k++) {
+      var z = b2[k];
+      for (j = 0; j < H; j++) z += _a1[j] * W2[j * H + k];
+      _a2[k] = Math.tanh(z);
+      f += _a2[k] * w3[k];
+    }
+    return f;
+  }
+  function backToInput() {
+    var k, j, gx = 0, gy = 0;
+    for (k = 0; k < H; k++) _d2[k] = (1 - _a2[k] * _a2[k]) * w3[k];
+    for (j = 0; j < H; j++) {
+      var s = 0;
+      for (k = 0; k < H; k++) s += _d2[k] * W2[j * H + k];
+      _d1[j] = s * (1 - _a1[j] * _a1[j]);
+      gx += _d1[j] * W1[j]; gy += _d1[j] * W1[H + j];
+    }
+    return [gx, gy];
+  }
+  function accumParamGrad(pts, sign, gW1, gb1, gW2, gb2, gw3) {
+    var n = pts.length, i, j, k;
+    for (i = 0; i < n; i++) {
+      var x = pts[i][0], y = pts[i][1];
+      fwd(x, y);
+      for (k = 0; k < H; k++) { gw3[k] += sign * _a2[k] / n; _d2[k] = (1 - _a2[k] * _a2[k]) * w3[k]; }
+      for (j = 0; j < H; j++) {
+        var s = 0;
+        for (k = 0; k < H; k++) { gW2[j * H + k] += sign * _a1[j] * _d2[k] / n; s += _d2[k] * W2[j * H + k]; }
+        _d1[j] = s * (1 - _a1[j] * _a1[j]);
+        gb1[j] += sign * _d1[j] / n;
+        gW1[j] += sign * x * _d1[j] / n;
+        gW1[H + j] += sign * y * _d1[j] / n;
+      }
+      for (k = 0; k < H; k++) gb2[k] += sign * _d2[k] / n;
+    }
+  }
+  initCritic();          // must exist before any control callback draws
+
+  // ---- world ---------------------------------------------------------------
+  // The opening draw is pinned to one that reliably cycles (numpy
+  // default_rng(9), sigma 0.30). How much the control cycles depends mostly on
+  // the draw, so a random opening draw would often hide the phenomenon
+  // entirely. Resample uses fresh randomness. This draw's extent is 0.84, which
+  // is where the success radius floors: see srFloor().
+  var PINNED = [[-0.2409,0.0729],[-0.4969,0.1968],[0.3430,-0.1358],[0.1291,0.0753],
+                [-0.1183,-0.2587],[-0.6098,0.4231],[-0.0143,0.7567],[0.2479,0.0833],
+                [-0.1972,0.4177],[-0.1519,0.4710],[-0.1195,0.0558],[-0.4568,0.7030]];
+  var usedPinned = false;
+
+  function sampleGT(n) {
+    if (!usedPinned && n === PINNED.length) {
+      usedPinned = true;
+      return PINNED.map(function (p) { return p.slice(); });
+    }
+    var out = [];
+    for (var i = 0; i < n; i++) out.push([SIG_GT * randn(), SIG_GT * randn()]);
+    return out;
+  }
+  // A demonstration is a success by definition, so the operator's success set has
+  // to contain the demonstrations -- the operator cannot be stricter than the
+  // demonstrations they accepted. The radius therefore floors at the extent of
+  // the UNBIASED draw, and nothing is ever sampled outside the success set.
+  // (Truncating the demos inward instead was measured: it concentrates them into
+  // a distribution the policy can match, the game becomes realizable, and the
+  // control arm stops cycling. That would be a demo of nothing.)
+  var demoExtent = 0, nOutside = 0;
+  function srFloor() { return Math.ceil(demoExtent * 20) / 20; }
+  function enforceFloor() {
+    var el = document.getElementById("sr"), f = srFloor();
+    el.min = f.toFixed(2);
+    // a wide draw can floor above the authored maximum; keep headroom above it
+    el.max = Math.max(1.8, f + 0.5).toFixed(2);
+    if (parseFloat(el.value) < f) el.value = f.toFixed(2);
+    P.sr = parseFloat(el.value);
+    var out = document.getElementById("srV");
+    if (out) out.textContent = P.sr.toFixed(2);
+    var lab = document.getElementById("srFloorV");
+    if (lab) lab.textContent = f.toFixed(2);
+  }
+  // Bias shifts the demo set bodily rather than redrawing it, so moving the
+  // slider changes only the offset and not which demonstrations you have. Bias
+  // is the one control that does push demonstrations out of the success set --
+  // that disagreement is the question it asks, so it is counted, not hidden.
+  function applyBias() {
+    demos = baseDemos.map(function (p) { return [p[0] + P.bias, p[1]]; });
+    var mx = 0, my = 0, ex = 0;
+    for (var i = 0; i < demos.length; i++) { mx += demos[i][0]; my += demos[i][1]; }
+    for (var j = 0; j < baseDemos.length; j++) {
+      ex = Math.max(ex, Math.hypot(baseDemos[j][0], baseDemos[j][1]));
+    }
+    demoExtent = ex;
+    demoMean = [mx / demos.length, my / demos.length];
+    enforceFloor();
+    nOutside = 0;
+    for (var m = 0; m < demos.length; m++) {
+      if (Math.hypot(demos[m][0], demos[m][1]) > P.sr) nOutside++;
+    }
+    var o = document.getElementById("nOut");
+    if (o) o.textContent = nOutside + " / " + demos.length;
+  }
+  function reset(resample, reinit) {
+    if (reinit) initCritic();
+    mu = START.slice();
+    if (resample || !baseDemos || baseDemos.length !== P.nDemos) baseDemos = sampleGT(P.nDemos);
+    applyBias();
+    trail = []; hist = []; last = null; withheld = 0;
+    draw(null); drawSeries();
+  }
+
+  function sampleBatch() {
+    var pts = new Array(BATCH), keep = new Array(BATCH), kept = [];
+    for (var i = 0; i < BATCH; i++) {
+      var x = mu[0] + SIG_P * randn(), y = mu[1] + SIG_P * randn();
+      pts[i] = [x, y];
+      var d = Math.hypot(x, y), truth = d <= P.sr, said = truth;
+      if (P.generous > 0 && d <= P.sr * (1 + P.generous)) said = true;
+      if (P.beta > 0 && truth && Math.random() < P.beta) said = false;
+      if (P.alpha > 0 && !truth && Math.random() < P.alpha) said = true;
+      keep[i] = P.feedback ? !said : true;
+      if (keep[i]) kept.push(pts[i]);
+    }
+    return { pts: pts, keep: keep, kept: kept };
+  }
+  // Gradient buffers live here rather than inside criticStep: at up to 5 critic
+  // steps per frame and 60 frames a second, reallocating ~1200 doubles each time
+  // is pure GC churn.
+  var gW1 = new Float64Array(2 * H), gb1 = new Float64Array(H),
+      gW2 = new Float64Array(H * H), gb2 = new Float64Array(H), gw3 = new Float64Array(H);
+
+  function criticStep(kept) {
+    if (!kept.length) return;
+    gW1.fill(0); gb1.fill(0); gW2.fill(0); gb2.fill(0); gw3.fill(0);
+    accumParamGrad(demos, 1, gW1, gb1, gW2, gb2, gw3);
+    accumParamGrad(kept, -1, gW1, gb1, gW2, gb2, gw3);
+    var c = P.clip, lam = P.decay, j, k;
+    for (j = 0; j < 2 * H; j++) W1[j] = Math.max(-c, Math.min(c, (1 - lam) * W1[j] + ETA_W * gW1[j]));
+    for (k = 0; k < H; k++) {
+      b1[k] = Math.max(-c, Math.min(c, (1 - lam) * b1[k] + ETA_W * gb1[k]));
+      b2[k] = Math.max(-c, Math.min(c, (1 - lam) * b2[k] + ETA_W * gb2[k]));
+      w3[k] = Math.max(-c, Math.min(c, (1 - lam) * w3[k] + ETA_W * gw3[k]));
+    }
+    for (j = 0; j < H * H; j++) W2[j] = Math.max(-c, Math.min(c, (1 - lam) * W2[j] + ETA_W * gW2[j]));
+  }
+
+  function step() {
+    var frame = null;
+    for (var c = 0; c < P.nCritic; c++) {          // the critic's inner loop
+      frame = sampleBatch();
+      withheld = 1 - frame.kept.length / BATCH;
+      criticStep(frame.kept);
+    }
+    var b = sampleBatch();                          // fresh batch for the policy
+    var gx = 0, gy = 0;
+    for (var i = 0; i < BATCH; i++) {
+      fwd(b.pts[i][0], b.pts[i][1]);
+      var g = backToInput();
+      gx += g[0]; gy += g[1];
+    }
+    mu[0] = Math.max(-BOUND, Math.min(BOUND, mu[0] + ETA_MU * gx / BATCH));
+    mu[1] = Math.max(-BOUND, Math.min(BOUND, mu[1] + ETA_MU * gy / BATCH));
+
+    var dist = Math.hypot(mu[0], mu[1]);
+    hist.push(dist); if (hist.length > WINDOW) hist.shift();
+    trail.push(mu.slice()); if (trail.length > 1200) trail.shift();
+    return { pts: b.pts, keep: b.keep, dist: dist };
+  }
+
+  // ---- rendering -----------------------------------------------------------
+  var plane = document.getElementById("plane"), pctx = plane.getContext("2d");
+  var series = document.getElementById("series"), sctx = series.getContext("2d");
+  var X0 = -2.4, X1 = 2.0, Y0 = -1.375, Y1 = 1.375;
+  var view = { k: 1, ox: 0, oy: 0 };
+  var field = document.createElement("canvas"), fctx = field.getContext("2d");
+  var GW = 60, GH = 40; field.width = GW; field.height = GH;
+
+  function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function fit(cv, ctx) {
+    var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w: r.width, h: r.height };
+  }
+  function drawField() {
+    var img = fctx.createImageData(GW, GH), data = img.data;
+    var vals = new Float64Array(GW * GH), peak = 1e-9;
+    for (var j = 0; j < GH; j++) for (var i = 0; i < GW; i++) {
+      var x = X0 + (X1 - X0) * (i + .5) / GW, y = Y1 - (Y1 - Y0) * (j + .5) / GH;
+      var v = fwd(x, y); vals[j * GW + i] = v;
+      if (Math.abs(v) > peak) peak = Math.abs(v);
+    }
+    for (var k = 0; k < vals.length; k++) {
+      var t = Math.max(-1, Math.min(1, vals[k] / peak)), o = k * 4;
+      if (t >= 0) { data[o] = 13; data[o + 1] = 110; data[o + 2] = 102; }
+      else { data[o] = 142; data[o + 1] = 51; data[o + 2] = 64; }
+      data[o + 3] = Math.round(125 * Math.pow(Math.abs(t), .7));
+    }
+    fctx.putImageData(img, 0, 0);
+  }
+  function star(ctx, cx, cy, r) {
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var rad = (i % 2 === 0) ? r : r * .44, a = Math.PI / 2 + i * Math.PI / 5;
+      var x = cx + rad * Math.cos(a), y = cy - rad * Math.sin(a);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+  function draw(frame) {
+    var s = fit(plane, pctx), W = s.w, Hh = s.h;
+    var k = Math.min(W / (X1 - X0), Hh / (Y1 - Y0));
+    var ox = W / 2 - k * (X0 + X1) / 2, oy = Hh / 2 + k * (Y0 + Y1) / 2;
+    view.k = k; view.ox = ox; view.oy = oy;
+    function px(x) { return ox + k * x; } function py(y) { return oy - k * y; }
+
+    pctx.clearRect(0, 0, W, Hh);
+    if (tick % 3 === 0 || !running) drawField();
+    pctx.imageSmoothingEnabled = true;
+    pctx.drawImage(field, px(X0), py(Y1), k * (X1 - X0), k * (Y1 - Y0));
+
+    pctx.strokeStyle = css("--ink-3"); pctx.lineWidth = 1.1;
+    pctx.globalAlpha = .5;
+    pctx.beginPath(); pctx.arc(px(0), py(0), k * SIG_GT, 0, 6.2832); pctx.stroke();
+    pctx.globalAlpha = .25;
+    pctx.beginPath(); pctx.arc(px(0), py(0), k * 2 * SIG_GT, 0, 6.2832); pctx.stroke();
+    pctx.globalAlpha = 1;
+
+    pctx.setLineDash([5, 4]); pctx.lineWidth = 1.2; pctx.strokeStyle = css("--ink-3");
+    pctx.beginPath(); pctx.arc(px(0), py(0), k * P.sr, 0, 6.2832); pctx.stroke();
+    if (P.generous > 0) {
+      pctx.setLineDash([2, 4]); pctx.strokeStyle = css("--hazard");
+      pctx.beginPath(); pctx.arc(px(0), py(0), k * P.sr * (1 + P.generous), 0, 6.2832); pctx.stroke();
+    }
+    pctx.setLineDash([]);
+
+    if (frame) {
+      for (var i = 0; i < frame.pts.length; i++) {
+        pctx.fillStyle = frame.keep[i] ? css("--ctrl") : css("--fb");
+        pctx.globalAlpha = frame.keep[i] ? .5 : .8;
+        pctx.beginPath(); pctx.arc(px(frame.pts[i][0]), py(frame.pts[i][1]), 1.7, 0, 6.2832); pctx.fill();
+      }
+      pctx.globalAlpha = 1;
+    }
+    if (trail.length > 1) {
+      pctx.strokeStyle = css("--accent"); pctx.globalAlpha = .45; pctx.lineWidth = 1.3;
+      pctx.beginPath(); pctx.moveTo(px(trail[0][0]), py(trail[0][1]));
+      for (var t = 1; t < trail.length; t++) pctx.lineTo(px(trail[t][0]), py(trail[t][1]));
+      pctx.stroke(); pctx.globalAlpha = 1;
+    }
+    if (P.bias > 0) {                            // what the critic alone pulls toward
+      pctx.strokeStyle = css("--ctrl"); pctx.lineWidth = 1.6;
+      pctx.beginPath(); pctx.arc(px(demoMean[0]), py(demoMean[1]), 6, 0, 6.2832); pctx.stroke();
+      pctx.beginPath(); pctx.moveTo(px(demoMean[0]) - 9, py(demoMean[1]));
+      pctx.lineTo(px(demoMean[0]) + 9, py(demoMean[1]));
+      pctx.moveTo(px(demoMean[0]), py(demoMean[1]) - 9);
+      pctx.lineTo(px(demoMean[0]), py(demoMean[1]) + 9); pctx.stroke();
+    }
+    for (var d = 0; d < demos.length; d++) {
+      // only reachable via the bias slider: a demonstration the operator would
+      // call a failure. Flagged rather than quietly left in the positive batch.
+      var outside = Math.hypot(demos[d][0], demos[d][1]) > P.sr;
+      pctx.fillStyle = css(outside ? "--hazard" : "--ink");
+      star(pctx, px(demos[d][0]), py(demos[d][1]), 6.5);
+    }
+    pctx.fillStyle = css("--accent");
+    pctx.beginPath(); pctx.arc(px(mu[0]), py(mu[1]), 5, 0, 6.2832); pctx.fill();
+    pctx.strokeStyle = css("--surface"); pctx.lineWidth = 1.5; pctx.stroke();
+  }
+  function drawSeries() {
+    var s = fit(series, sctx), W = s.w, Hh = s.h, pad = 22, top = 8, yMax = 1.8;
+    sctx.clearRect(0, 0, W, Hh);
+    function py(v) { return top + (Hh - top - 14) * (1 - v / yMax); }
+    sctx.strokeStyle = css("--rule-soft"); sctx.lineWidth = 1; sctx.beginPath();
+    [0, 0.5, 1, 1.5].forEach(function (g) { sctx.moveTo(pad, py(g)); sctx.lineTo(W - 4, py(g)); });
+    sctx.stroke();
+    sctx.setLineDash([5, 4]); sctx.strokeStyle = css("--ink-3");
+    sctx.beginPath(); sctx.moveTo(pad, py(P.sr)); sctx.lineTo(W - 4, py(P.sr)); sctx.stroke();
+    sctx.setLineDash([]);
+    sctx.fillStyle = css("--ink-3"); sctx.font = '10px ' + css("--f-mono");
+    sctx.fillText("1.5", 2, py(1.5) + 3); sctx.fillText("1.0", 2, py(1) + 3);
+    sctx.fillText("0.5", 2, py(.5) + 3); sctx.fillText("0", 2, py(0) + 3);
+    if (hist.length > 1) {
+      sctx.strokeStyle = P.feedback ? css("--fb") : css("--ctrl");
+      sctx.lineWidth = 1.6; sctx.beginPath();
+      for (var i = 0; i < hist.length; i++) {
+        var x = pad + (W - pad - 4) * (i / (WINDOW - 1)), y = py(Math.min(hist[i], yMax));
+        if (i === 0) sctx.moveTo(x, y); else sctx.lineTo(x, y);
+      }
+      sctx.stroke();
+    }
+  }
+  function fmt(v) { return (v === null || v === undefined || isNaN(v)) ? "—" : v.toFixed(3); }
+  function updateStats(dist) {
+    var recent = hist.slice(-Math.min(hist.length, 600)), lo = Infinity, hi = -Infinity, sum = 0;
+    for (var i = 0; i < recent.length; i++) { lo = Math.min(lo, recent[i]); hi = Math.max(hi, recent[i]); sum += recent[i]; }
+    document.getElementById("dNow").textContent = fmt(dist);
+    document.getElementById("dMean").textContent = recent.length ? fmt(sum / recent.length) : "—";
+    document.getElementById("dSwing").textContent = recent.length ? fmt(hi - lo) : "—";
+    document.getElementById("withheld").textContent = Math.round(100 * withheld) + "%";
+    document.getElementById("dDemo").textContent =
+      fmt(Math.hypot(mu[0] - demoMean[0], mu[1] - demoMean[1]));
+  }
+  function frame() {
+    var f = null;
+    tick++;
+    if (running) { for (var i = 0; i < P.speed; i++) f = step(); }
+    draw(f || last); if (f) last = f;
+    drawSeries();
+    updateStats(f ? f.dist : (hist.length ? hist[hist.length - 1] : NaN));
+    requestAnimationFrame(frame);
+  }
+
+  // ---- progressive disclosure ---------------------------------------------
+  // One question at a time. The next appears once you have acted on this one,
+  // so the page opens as a single choice instead of sixteen sliders.
+  var steps = Array.prototype.slice.call(document.querySelectorAll(".step"));
+  var GROUPS = { operator: "The operator", expert: "The expert", critic: "The critic" };
+  var revealed = 1, groupCount = {};
+  document.getElementById("qTot").textContent = String(steps.length);
+
+  function groupHeaderFor(name, beforeEl) {
+    var h = document.createElement("p");
+    h.className = "ghead"; h.textContent = GROUPS[name];
+    h.setAttribute("data-ghead", name);
+    beforeEl.parentNode.insertBefore(h, beforeEl);
+  }
+  function noteGroup(el) {
+    var g = el.getAttribute("data-group");
+    if (!GROUPS[g]) return;
+    groupCount[g] = (groupCount[g] || 0) + 1;
+    // A divider only earns its keep once a group holds more than one question.
+    if (groupCount[g] === 2 && !document.querySelector('[data-ghead="' + g + '"]')) {
+      var first = steps.filter(function (s) { return s.getAttribute("data-group") === g; })[0];
+      groupHeaderFor(g, first);
+    }
+  }
+  noteGroup(steps[0]);
+
+  function revealNext() {
+    if (revealed >= steps.length) { document.getElementById("speedRow").hidden = false; return; }
+    var el = steps[revealed];
+    el.hidden = false;
+    noteGroup(el);
+    revealed++;
+    document.getElementById("qNum").textContent = String(revealed);
+    if (revealed === steps.length) document.getElementById("speedRow").hidden = false;
+  }
+  function engage(el) {
+    if (el.classList.contains("done")) return;
+    el.classList.add("done");
+    if (steps.indexOf(el) === revealed - 1) revealNext();
+  }
+  function wire(id, ev) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener(ev, function () {
+      var st = el.closest(".step");
+      if (st) engage(st);
+    });
+  }
+  document.getElementById("showAll").addEventListener("click", function () {
+    while (revealed < steps.length) revealNext();
+    steps.forEach(function (s) { s.hidden = false; });
+    document.getElementById("speedRow").hidden = false;
+    document.getElementById("qNum").textContent = String(steps.length);
+  });
+
+  // ---- controls ------------------------------------------------------------
+  function bind(id, key, dec, after) {
+    var el = document.getElementById(id), out = document.getElementById(id + "V");
+    function sync() {
+      P[key] = parseFloat(el.value);
+      out.textContent = P[key].toFixed(dec);
+      if (after) after();
+    }
+    el.addEventListener("input", sync); sync(); return el;
+  }
+  bind("alpha", "alpha", 2); bind("gen", "generous", 2); bind("decay", "decay", 4);
+  bind("sr", "sr", 2, function () { if (baseDemos) applyBias(); });
+  bind("clip", "clip", 2); bind("speed", "speed", 0);
+  bind("ncritic", "nCritic", 0);
+  bind("ndemos", "nDemos", 0, function () { baseDemos = null; reset(true, false); });
+  bind("bias", "bias", 2, function () { if (baseDemos) { applyBias(); draw(last); } });
+  ["alpha", "gen", "decay", "sr", "clip", "ncritic", "ndemos", "bias"].forEach(function (id) { wire(id, "input"); });
+
+  var betaEl = bind("beta", "beta", 2, function () {
+    var h = document.getElementById("betaHint");
+    if (P.beta >= 1) {
+      if (P.feedback) { autoOff = true; setFeedback(false); }
+      h.className = "hint warn";
+      h.textContent = "β = 1 is exactly feedback off — the operator never reports a success, so nothing is ever withheld.";
+    } else {
+      if (autoOff) { autoOff = false; setFeedback(true); }
+      h.className = "hint"; h.innerHTML = "&nbsp;";
+    }
+  });
+  wire("beta", "input");
+
+  var fbOn = document.getElementById("fbOn"), fbOff = document.getElementById("fbOff");
+  function setFeedback(on) {
+    P.feedback = on;
+    fbOn.setAttribute("aria-pressed", String(on));
+    fbOff.setAttribute("aria-pressed", String(!on));
+    document.getElementById("fbHint").textContent = on
+      ? "Successes are withheld from the negative batch. Nothing else changes."
+      : "Every sample is a negative, successes included. This is vanilla adversarial IRL.";
+  }
+  fbOn.addEventListener("click", function () {
+    if (P.beta >= 1) { betaEl.value = 0.9; betaEl.dispatchEvent(new Event("input")); }
+    autoOff = false; setFeedback(true); engage(steps[0]);
+  });
+  fbOff.addEventListener("click", function () {
+    autoOff = false; setFeedback(false); engage(steps[0]);
+  });
+
+  var playBtn = document.getElementById("play");
+  playBtn.addEventListener("click", function () {
+    running = !running;
+    playBtn.textContent = running ? "Pause" : "Play";
+    playBtn.setAttribute("aria-pressed", String(running));
+  });
+  document.getElementById("reset").addEventListener("click", function () { reset(false, true); });
+  document.getElementById("resample").addEventListener("click", function () {
+    baseDemos = null; reset(true, true); engage(steps[6]);
+  });
+  function initHere() {
+    initCritic();                  // a placement is an initial condition, not a probe
+    hist = []; last = null; withheld = 0;
+    drawSeries();
+  }
+  document.getElementById("drop").addEventListener("click", function () {
+    initHere();
+    mu = [0, 0]; trail = [mu.slice()]; draw(null); engage(steps[1]);
+  });
+
+  function placeFromEvent(ev) {
+    var r = plane.getBoundingClientRect();
+    mu[0] = ((ev.clientX - r.left) - view.ox) / view.k;
+    mu[1] = (view.oy - (ev.clientY - r.top)) / view.k;
+    trail = [mu.slice()]; draw(last);
+    if (!steps[1].hidden) engage(steps[1]);
+  }
+  var dragging = false;
+  plane.addEventListener("pointerdown", function (ev) {
+    // once per placement, not once per drag frame
+    dragging = true; plane.setPointerCapture(ev.pointerId);
+    initHere(); placeFromEvent(ev); ev.preventDefault();
+  });
+  plane.addEventListener("pointermove", function (ev) { if (dragging) placeFromEvent(ev); });
+  plane.addEventListener("pointerup", function (ev) {
+    dragging = false;
+    if (plane.hasPointerCapture(ev.pointerId)) plane.releasePointerCapture(ev.pointerId);
+  });
+  plane.addEventListener("pointercancel", function () { dragging = false; });
+
+  window.addEventListener("resize", function () { draw(last); drawSeries(); });
+
+  reset(true, false);
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    running = false; playBtn.textContent = "Play"; playBtn.setAttribute("aria-pressed", "false");
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
